@@ -217,7 +217,7 @@ func getCookie(r *http.Request) objects.CallableFunc {
 
 		cookie, err := r.Cookie(key)
 		if err != nil {
-			return nil, err
+			return ToError(err), nil
 		}
 
 		return &objects.ImmutableMap{
