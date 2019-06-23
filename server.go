@@ -3,11 +3,15 @@ package why
 import (
 	"bytes"
 	"context"
-	"io/ioutil"
+	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/d5/tengo/objects"
 
 	"go.uber.org/atomic"
 
@@ -23,6 +27,8 @@ type Server struct {
 	extensions []Extension
 	running    *atomic.Bool
 	conf       *Config
+	bufferPool *sync.Pool
+	stdModules *objects.ModuleMap
 }
 
 // New creates a new why server.
@@ -30,6 +36,12 @@ func New(conf *Config) *Server {
 	return &Server{
 		running: atomic.NewBool(false),
 		conf:    conf,
+		bufferPool: &sync.Pool{
+			New: func() interface{} {
+				return new(bytes.Buffer)
+			},
+		},
+		stdModules: stdlib.GetModuleMap(stdlib.AllModuleNames()...),
 	}
 }
 
@@ -89,7 +101,7 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Read the target file.
-	data, err := ioutil.ReadFile(filepath.Join(s.conf.PublicDir, path))
+	file, err := os.OpenFile(filepath.Join(s.conf.PublicDir, path), os.O_RDONLY, 0666)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -98,14 +110,19 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 	// If it it's not a .tengo script we just return the content of the file.
 	if !strings.HasSuffix(path, ".tengo") {
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(data)
+		_, _ = io.Copy(w, file)
 		return
 	}
 
-	// Transpile the html into a working tengo script
-	transpiled, err := Transpile(data)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	// transpile html containing tengo scripts to a complete tengo script.
+	transpiled := s.bufferPool.Get().(*bytes.Buffer)
+	defer func() {
+		transpiled.Reset()
+		s.bufferPool.Put(transpiled)
+	}()
+
+	if err := Transpile(file, transpiled); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -114,12 +131,16 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 
 	// Create final buffer where the html will be written to before
 	// writing to the response.
-	buf := new(bytes.Buffer)
+	buf := s.bufferPool.Get().(*bytes.Buffer)
+	defer func() {
+		buf.Reset()
+		s.bufferPool.Put(buf)
+	}()
 
 	// Create script and bind all the custom functions and variables.
-	sc := script.New(transpiled)
+	sc := script.New(transpiled.Bytes())
 	sc.EnableFileImport(true)
-	sc.SetImports(stdlib.GetModuleMap(stdlib.AllModuleNames()...))
+	sc.SetImports(s.stdModules)
 
 	_ = sc.Add("PUB_DIR", s.conf.PublicDir)
 
