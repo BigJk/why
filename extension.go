@@ -20,6 +20,9 @@ type Extension interface {
 	// Shutdown will be called after server shutdown.
 	Shutdown() error
 
+	// Vars will return a array of global variables that the extension will insert
+	Vars() []string
+
 	// Hook will be called on each http request.
-	Hook(sc *script.Script, w io.Writer, resp http.ResponseWriter, r *http.Request) error
+	Hook(sc *script.Compiled, w io.Writer, resp http.ResponseWriter, r *http.Request) error
 }

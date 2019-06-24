@@ -25,6 +25,8 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/BigJk/why"
+
 	"github.com/d5/tengo/objects"
 	"github.com/d5/tengo/script"
 	"github.com/d5/tengo/stdlib/json"
@@ -73,11 +75,16 @@ func (e *Extension) Shutdown() error {
 	return e.conn.Close()
 }
 
+// Vars returns all the variables bbolt will globally create
+func (e *Extension) Vars() []string {
+	return []string{"bbolt"}
+}
+
 // Hook will add a variable called 'bbolt' to the
 // script runtime that contains functions to access
 // bbolt.
-func (e *Extension) Hook(sc *script.Script, w io.Writer, resp http.ResponseWriter, r *http.Request) error {
-	return sc.Add("bbolt", &objects.ImmutableMap{
+func (e *Extension) Hook(sc *script.Compiled, w io.Writer, resp http.ResponseWriter, r *http.Request) error {
+	return sc.Set("bbolt", &objects.ImmutableMap{
 		Value: map[string]objects.Object{
 			"set": &objects.UserFunction{
 				Value: func(interop objects.Interop, args ...objects.Object) (ret objects.Object, err error) {
@@ -128,10 +135,14 @@ func (e *Extension) Hook(sc *script.Script, w io.Writer, resp http.ResponseWrite
 					var data []byte
 					if err := e.conn.View(func(tx *bbolt.Tx) error {
 						b := tx.Bucket([]byte(bucket))
+						if b == nil {
+							return errors.New("bucket not found")
+						}
+
 						data = b.Get([]byte(key))
 						return nil
 					}); err != nil {
-						return nil, err
+						return why.ToError(err), nil
 					}
 
 					return json.Decode(data)
@@ -148,10 +159,10 @@ func (e *Extension) Hook(sc *script.Script, w io.Writer, resp http.ResponseWrite
 						return nil, errors.New("first argument is not a string")
 					}
 
-					return nil, e.conn.View(func(tx *bbolt.Tx) error {
+					return why.ToError(e.conn.View(func(tx *bbolt.Tx) error {
 						b := tx.Bucket([]byte(bucket))
 						if b == nil {
-							return nil
+							return errors.New("bucket not found")
 						}
 
 						c := b.Cursor()
@@ -178,7 +189,7 @@ func (e *Extension) Hook(sc *script.Script, w io.Writer, resp http.ResponseWrite
 						}
 
 						return nil
-					})
+					})), nil
 				},
 			},
 		},

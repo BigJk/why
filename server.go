@@ -11,29 +11,33 @@ import (
 	"sync"
 	"time"
 
+	"github.com/d5/tengo/script"
+
 	"github.com/d5/tengo/objects"
 
 	"go.uber.org/atomic"
 
 	"github.com/pkg/errors"
 
-	"github.com/d5/tengo/script"
 	"github.com/d5/tengo/stdlib"
 )
 
+var globalVariables = []string{"http", "PUB_DIR"}
+
 // Server represents a instance of the why server.
 type Server struct {
+	conf       *Config
+	running    *atomic.Bool
 	serv       *http.Server
 	extensions []Extension
-	running    *atomic.Bool
-	conf       *Config
-	bufferPool *sync.Pool
 	stdModules *objects.ModuleMap
+	bufferPool *sync.Pool
+	cache      *scriptCache
 }
 
 // New creates a new why server.
 func New(conf *Config) *Server {
-	return &Server{
+	s := &Server{
 		running: atomic.NewBool(false),
 		conf:    conf,
 		bufferPool: &sync.Pool{
@@ -43,6 +47,24 @@ func New(conf *Config) *Server {
 		},
 		stdModules: stdlib.GetModuleMap(stdlib.AllModuleNames()...),
 	}
+
+	// Create a script cache that will cache compiled scripts.
+	s.cache = newCache(func(sc *script.Script) {
+		sc.EnableFileImport(true)
+		sc.SetImports(s.stdModules)
+
+		for i := range globalVariables {
+			_ = sc.Add(globalVariables[i], "")
+		}
+
+		for i := range s.extensions {
+			for j := range s.extensions[i].Vars() {
+				_ = sc.Add(s.extensions[i].Vars()[j], "")
+			}
+		}
+	})
+
+	return s
 }
 
 // AddExtension adds a new extension to the server.
@@ -89,10 +111,23 @@ func (s *Server) Shutdown() error {
 	return s.serv.Shutdown(ctx)
 }
 
+func (s *Server) error(w http.ResponseWriter, err error, code int) {
+	if !s.conf.EnableError {
+		http.Error(w, "error", code)
+	} else {
+		http.Error(w, err.Error(), code)
+	}
+}
+
 func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
-	// Trim '.' and '/' from the path to stop traversal of higher
-	// folders.
-	path := strings.TrimLeft(r.URL.Path, "./")
+	// If the path contains '..' a attacker could traverse upper directories
+	// and access files that could contain sensitive information. If a '..'
+	// appears in the path we will return a error.
+	path := r.URL.Path
+	if strings.Contains(path, "..") {
+		s.error(w, errors.New("upper traversal of directory forbidden"), http.StatusInternalServerError)
+		return
+	}
 
 	// If the given path has no extension assume that a .tengo file
 	// is meant.
@@ -103,7 +138,7 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 	// Read the target file.
 	file, err := os.OpenFile(filepath.Join(s.conf.PublicDir, path), os.O_RDONLY, 0666)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		s.error(w, err, http.StatusNotFound)
 		return
 	}
 
@@ -122,11 +157,11 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	if err := Transpile(file, transpiled); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		s.error(w, err, http.StatusInternalServerError)
 		return
 	}
 
-	// Parse POST form
+	// Parse POST form.
 	_ = r.ParseForm()
 
 	// Create final buffer where the html will be written to before
@@ -137,30 +172,31 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 		s.bufferPool.Put(buf)
 	}()
 
-	// Create script and bind all the custom functions and variables.
-	sc := script.New(transpiled.Bytes())
-	sc.EnableFileImport(true)
-	sc.SetImports(s.stdModules)
+	// Compile the script or get a instance from cache.
+	back, sc, err := s.cache.get(transpiled.Bytes())
+	defer func() {
+		s.cache.put(back, sc)
+	}()
 
-	_ = sc.Add("PUB_DIR", s.conf.PublicDir)
-
+	// Replace all the variables with the correct ones for this request.
+	_ = sc.Set("PUB_DIR", s.conf.PublicDir)
 	err = addHTTP(sc, buf, w, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		s.error(w, err, http.StatusNotFound)
 		return
 	}
 
 	// Call all extension hooks.
 	for i := range s.extensions {
 		if err := s.extensions[i].Hook(sc, buf, w, r); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			s.error(w, err, http.StatusInternalServerError)
 			return
 		}
 	}
 
 	// Run the script.
-	if _, err := sc.Run(); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	if err := sc.Run(); err != nil {
+		s.error(w, err, http.StatusInternalServerError)
 		return
 	}
 

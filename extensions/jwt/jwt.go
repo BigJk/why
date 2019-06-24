@@ -65,11 +65,16 @@ func (e *Extension) Shutdown() error {
 	return nil
 }
 
+// Vars returns all the variables jwt will globally create
+func (e *Extension) Vars() []string {
+	return []string{"jwt"}
+}
+
 // Hook will add a variable called 'jwt' to the
 // script runtime that contains functions to generate
 // jwt tokens and extract the token data.
-func (e *Extension) Hook(sc *script.Script, w io.Writer, resp http.ResponseWriter, r *http.Request) error {
-	return sc.Add("jwt", &objects.ImmutableMap{
+func (e *Extension) Hook(sc *script.Compiled, w io.Writer, resp http.ResponseWriter, r *http.Request) error {
+	return sc.Set("jwt", &objects.ImmutableMap{
 		Value: map[string]objects.Object{
 			"generate": &objects.UserFunction{
 				Value: func(interop objects.Interop, args ...objects.Object) (ret objects.Object, err error) {

@@ -271,8 +271,8 @@ func setCookie(resp http.ResponseWriter) objects.CallableFunc {
 	}
 }
 
-func addHTTP(sc *script.Script, w io.Writer, resp http.ResponseWriter, r *http.Request) error {
-	return sc.Add("http", &objects.ImmutableMap{
+func addHTTP(sc *script.Compiled, w io.Writer, resp http.ResponseWriter, r *http.Request) error {
+	return sc.Set("http", &objects.ImmutableMap{
 		Value: map[string]objects.Object{
 			"method": &objects.String{
 				Value: r.Method,
