@@ -1,6 +1,7 @@
 package why
 
 import (
+	"bytes"
 	"errors"
 	"html"
 	"io"
@@ -13,6 +14,15 @@ import (
 	"github.com/d5/tengo/script"
 )
 
+type scriptInstance struct {
+	script     *script.Compiled
+	buf        *bytes.Buffer
+	req        *http.Request
+	statusCode *int
+	respWriter http.ResponseWriter
+	cut        int
+}
+
 func valuesToObject(v url.Values) (*objects.Array, error) {
 	var keys []objects.Object
 	for key := range v {
@@ -23,6 +33,12 @@ func valuesToObject(v url.Values) (*objects.Array, error) {
 		keys = append(keys, keyObj)
 	}
 	return &objects.Array{Value: keys}, nil
+}
+
+func stopRequest() objects.CallableFunc {
+	return func(interop objects.Interop, args ...objects.Object) (ret objects.Object, err error) {
+		return nil, requestedAbort
+	}
 }
 
 func writeHTML(w io.Writer) objects.CallableFunc {
@@ -43,6 +59,31 @@ func writeHTML(w io.Writer) objects.CallableFunc {
 			}
 		}
 		return nil, nil
+	}
+}
+
+func overwriteHTML(buf *bytes.Buffer) objects.CallableFunc {
+	return func(interop objects.Interop, args ...objects.Object) (ret objects.Object, err error) {
+		if len(args) == 0 {
+			return nil, objects.ErrWrongNumArguments
+		}
+		buf.Reset()
+		return writeHTML(buf)(interop, args...)
+	}
+}
+
+func setStatusCode(code *int) objects.CallableFunc {
+	return func(interop objects.Interop, args ...objects.Object) (ret objects.Object, err error) {
+		if len(args) != 1 {
+			return nil, objects.ErrWrongNumArguments
+		}
+
+		if newCode, ok := objects.ToInt(args[0]); ok {
+			*code = newCode
+			return
+		}
+
+		return nil, errors.New("argument wasn't a int")
 	}
 }
 
@@ -271,82 +312,91 @@ func setCookie(resp http.ResponseWriter) objects.CallableFunc {
 	}
 }
 
-func addHTTP(sc *script.Compiled, w io.Writer, resp http.ResponseWriter, r *http.Request) error {
-	return sc.Set("http", &objects.ImmutableMap{
+func addHTTP(si *scriptInstance) error {
+	return si.script.Set("http", &objects.ImmutableMap{
 		Value: map[string]objects.Object{
 			"method": &objects.String{
-				Value: r.Method,
+				Value: si.req.Method,
 			},
 			"full_uri": &objects.String{
-				Value: r.RequestURI,
+				Value: si.req.RequestURI,
 			},
 			"path": &objects.String{
-				Value: r.URL.Path,
+				Value: si.req.URL.Path,
 			},
 			"scheme": &objects.String{
-				Value: r.URL.Scheme,
+				Value: si.req.URL.Scheme,
 			},
 			"host": &objects.String{
-				Value: r.URL.Host,
+				Value: si.req.URL.Host,
 			},
 			"ip": &objects.String{
-				Value: r.RemoteAddr,
+				Value: si.req.RemoteAddr,
 			},
 			"proto": &objects.String{
-				Value: r.Proto,
+				Value: si.req.Proto,
 			},
 			"write": &objects.UserFunction{
-				Value: writeHTML(w),
+				Value: writeHTML(si.buf),
+			},
+			"overwrite": &objects.UserFunction{
+				Value: overwriteHTML(si.buf),
+			},
+			"status_code": &objects.UserFunction{
+				Value: setStatusCode(si.statusCode),
+			},
+			"die": &objects.UserFunction{
+				Value: stopRequest(),
 			},
 			"escape": &objects.UserFunction{
 				Value: escapeHTML,
 			},
 			"body": &objects.UserFunction{
-				Value: getBody(r),
+				Value: getBody(si.req),
 			},
 			"GET": &objects.ImmutableMap{
 				Value: map[string]objects.Object{
 					"keys": &objects.UserFunction{
-						Value: getGetKeys(r),
+						Value: getGetKeys(si.req),
 					},
 					"param": &objects.UserFunction{
-						Value: getGetParam(r),
+						Value: getGetParam(si.req),
 					},
 				},
 			},
 			"POST": &objects.ImmutableMap{
 				Value: map[string]objects.Object{
 					"keys": &objects.UserFunction{
-						Value: getPostKeys(r),
+						Value: getPostKeys(si.req),
 					},
 					"param": &objects.UserFunction{
-						Value: getPostParam(r),
+						Value: getPostParam(si.req),
 					},
 				},
 			},
 			"HEADER": &objects.ImmutableMap{
 				Value: map[string]objects.Object{
 					"keys": &objects.UserFunction{
-						Value: getHeaderKeys(r),
+						Value: getHeaderKeys(si.req),
 					},
 					"param": &objects.UserFunction{
-						Value: getHeader(r),
+						Value: getHeader(si.req),
 					},
 					"set": &objects.UserFunction{
-						Value: setHeader(resp),
+						Value: setHeader(si.respWriter),
 					},
 				},
 			},
 			"COOKIES": &objects.ImmutableMap{
 				Value: map[string]objects.Object{
 					"all": &objects.UserFunction{
-						Value: getCookies(r),
+						Value: getCookies(si.req),
 					},
 					"param": &objects.UserFunction{
-						Value: getCookie(r),
+						Value: getCookie(si.req),
 					},
 					"set": &objects.UserFunction{
-						Value: setCookie(resp),
+						Value: setCookie(si.respWriter),
 					},
 				},
 			},

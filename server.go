@@ -23,6 +23,7 @@ import (
 )
 
 var globalVariables = []string{"http", "PUB_DIR"}
+var requestedAbort = errors.New("requested abort")
 
 // Server represents a instance of the why server.
 type Server struct {
@@ -174,13 +175,31 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 
 	// Compile the script or get a instance from cache.
 	back, sc, err := s.cache.get(transpiled.Bytes())
+	if err != nil {
+		s.error(w, err, http.StatusInternalServerError)
+		return
+	}
+
 	defer func() {
 		s.cache.put(back, sc)
 	}()
 
+	// The final status code.
+	statusCode := http.StatusOK
+
+	// Contains data about the request. Besides writing to the buffer
+	// and the responseWriter, the script may set the status code.
+	si := &scriptInstance{
+		script:     sc,
+		buf:        buf,
+		req:        r,
+		statusCode: &statusCode,
+		respWriter: w,
+	}
+
 	// Replace all the variables with the correct ones for this request.
 	_ = sc.Set("PUB_DIR", s.conf.PublicDir)
-	err = addHTTP(sc, buf, w, r)
+	err = addHTTP(si)
 	if err != nil {
 		s.error(w, err, http.StatusNotFound)
 		return
@@ -195,12 +214,12 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Run the script.
-	if err := sc.Run(); err != nil {
+	if err := sc.Run(); err != nil && !strings.Contains(err.Error(), requestedAbort.Error()) {
 		s.error(w, err, http.StatusInternalServerError)
 		return
 	}
 
 	// Write the response.
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(statusCode)
 	_, _ = w.Write(buf.Bytes())
 }
