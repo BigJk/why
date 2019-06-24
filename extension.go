@@ -20,7 +20,9 @@ type Extension interface {
 	// Shutdown will be called after server shutdown.
 	Shutdown() error
 
-	// Vars will return a array of global variables that the extension will insert
+	// Vars will return a array of global variables that the extension will insert.
+	// If you try to set a variable inside the Hook function that isn't specified here
+	// a error will occur. The names are needed so compiled scripts can be cached.
 	Vars() []string
 
 	// Hook will be called on each http request.

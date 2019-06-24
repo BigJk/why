@@ -213,7 +213,9 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Run the script.
+	// Run the script and check the error. If the error is a
+	// requested abort we won't treat it as error. A requested
+	// error will be thrown by using http.die().
 	if err := sc.Run(); err != nil && !strings.Contains(err.Error(), requestedAbort.Error()) {
 		s.error(w, err, http.StatusInternalServerError)
 		return
