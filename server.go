@@ -83,9 +83,12 @@ func (s *Server) AddExtension(e Extension) error {
 // Start starts the server and binds it to the
 // given address.
 func (s *Server) Start(address string) error {
-	if s.running.Load() {
+	if !s.running.CAS(false, true) {
 		return errors.New("server already running")
 	}
+	defer func() {
+		s.running.Store(false)
+	}()
 
 	log.Print(`──────┐
 │                         │
@@ -94,11 +97,6 @@ func (s *Server) Start(address string) error {
 │                         │
 └─────────────────────────┘
 `)
-
-	s.running.Store(true)
-	defer func() {
-		s.running.Store(false)
-	}()
 
 	for i := range s.extensions {
 		if err := s.extensions[i].Init(); err != nil {
@@ -124,6 +122,7 @@ func (s *Server) Shutdown() error {
 			log.Printf("Extension '%s' shutting down.\n", s.extensions[i].Name())
 			_ = s.extensions[i].Shutdown()
 		}
+		log.Printf("Server finished shutting down.")
 	}()
 
 	ctx, _ := context.WithTimeout(context.Background(), time.Second*5)
