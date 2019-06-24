@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pastebin Clone | </title>
+
+    <link rel="stylesheet" href="https://unpkg.com/wingcss"/>
+    <link rel="stylesheet" href="https://unpkg.com/tachyons@4.10.0/css/tachyons.min.css"/>
+</head>
+<body class="flex justify-center">
+<div class="mw8 w-100 pv4">
+
+    <!?
+
+        paste := bbolt.get("pastes", http.GET.param("id"))
+        if is_error(paste) {
+            http.write("<div class=\"w-100 pa3 bg-washed-red mt3\"><b>Error: </b>", paste.value, "</div><div></body>");
+            http.die();
+        }
+
+        comment_bucket := http.GET.param("id") + ".COMMENTS";
+
+        if http.method == "POST" {
+            times   := import("times")
+            text    := import("text")
+
+            name    := text.trim(http.POST.param("name"), " \r\n")
+            comment := text.trim(http.POST.param("comment"), " \r\n")
+
+            if len(name) > 3 && len(name) < 20 && len(comment) > 3 && len(comment) < 5000 {
+                bbolt.set(comment_bucket, times.time_unix_nano(times.now()), {
+                    name: name,
+                    comment: comment,
+                    time: times.now()
+                })
+            }
+        }
+
+    ?!>
+
+    <div class="w-100">
+        <div class="flex justify-between items-center">
+            <h5 class="fw1 mv0"><!? http.write(paste.name) ?!></h5>
+            <a class="no-underline dim" href="./index">Back Home</a>
+        </div>
+        <div class="w-100 bb b--black-10 mv3"></div>
+        <pre><code><!? http.write(http.escape(paste.text)) ?!></code></pre>
+    </div>
+
+    <div class="w-100 bb b--black-10 mv3"></div>
+
+    <!?
+
+        found := false
+        bbolt.iterate(comment_bucket, func(key, value) {
+            found = true
+            http.write("<div class=\"mv2\"><div class=\"b f5\">", http.escape(value.name), "</div>", http.escape(value.comment), "</div>")
+            return true
+        })
+
+        if !found {
+            http.write("<div class=\"f4 o-30\">No comments found...</div>")
+        }
+
+    ?!>
+
+    <div class="w-100 bb b--black-10 mv3"></div>
+
+    <h5 class="fw1 mv0">Post New Comment</h5>
+    <form action="./paste?id=<!? http.write(http.GET.param("id")) ?!>" method="POST">
+        <input type="text" id="name" name="name" placeholder="Your Name..."/>
+        <textarea id="comment" name="comment" placeholder="Comment..."></textarea>
+        <button type="submit">Submit</button>
+    </form>
+
+</div>
+</body>

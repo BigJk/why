@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pastebin Clone | Create Paste</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/wingcss"/>
+    <link rel="stylesheet" href="https://unpkg.com/tachyons@4.10.0/css/tachyons.min.css"/>
+</head>
+<body class="flex justify-center">
+<div class="mw8 w-100 pt4">
+
+    <!?
+
+        times   := import("times")
+        text    := import("text")
+
+        bucket := "pastes"
+
+        if http.method == "POST" {
+            name    := text.trim(http.POST.param("name"), " \r\n")
+            text    := http.POST.param("text");
+            private := http.POST.param("private") == "on";
+
+            if len(name) > 3 && len(name) < 20 && len(text) > 3 && len(text) < 25000 {
+                id := times.time_unix_nano(times.now());
+                if err := bbolt.set(bucket, id, {
+                    name: name,
+                    text: text,
+                    private: private,
+                    time: times.now()
+                }); is_error(err) {
+                    http.write("<div class=\"w-100 pa3 bg-washed-red mt3\"><b>Error: </b>", err, "</div>");
+                } else {
+                    http.overwrite("");
+                    http.status_code(302);
+                    http.HEADER.set("location", "./paste?id=" + id);
+                    http.die();
+                }
+            }
+        }
+
+    ?!>
+
+    <div class="flex justify-between items-center">
+        <h5 class="fw1 mv0">Create New Paste</h5>
+        <a class="no-underline dim" href="./index">Back Home</a>
+    </div>
+    <form action="./create" method="POST">
+        <input type="text" id="name" name="name" placeholder="Paste Title">
+        <textarea class="h5" id="text" name="text" placeholder="Text..." rows="10"></textarea>
+        <div class="w-100 flex justify-between items-start">
+            <div>
+                <label for="private">Private</label>
+                <input type="checkbox" id="private" name="private">
+            </div>
+            <button type="submit">Create</button>
+        </div>
+    </form>
+
+</div>
+</body>

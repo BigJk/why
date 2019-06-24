@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Comments</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/wingcss"/>
+    <link rel="stylesheet" href="https://unpkg.com/tachyons@4.10.0/css/tachyons.min.css"/>
+</head>
+<body class="flex justify-center">
+    <div class="mw8 w-100">
+        <h1 class="fw1 mb0 mt3">Comments</h1>
+
+        <div class="w-100 bb b--black-10 mv3"></div>
+
+        <!?
+
+        times   := import("times")
+        text    := import("text")
+
+        bucket := "comments"
+
+        if http.method == "POST" {
+            name    := text.trim(http.POST.param("name"), " \r\n")
+            comment := text.trim(http.POST.param("comment"), " \r\n")
+
+            if len(name) > 3 && len(name) < 20 && len(comment) > 3 && len(comment) < 5000 {
+                bbolt.set(bucket, times.time_unix_nano(times.now()), {
+                    name: name,
+                    comment: comment,
+                    time: times.now()
+                })
+
+                http.COOKIES.set({
+                    "name": "last_name",
+                    "value": name,
+                    "expires": times.add(times.now(), times.hour * 24 * 3)
+                })
+            }
+        }
+
+        found := false
+        bbolt.iterate(bucket, func(key, value) {
+            found = true
+            http.write("<div class=\"mv2\"><div class=\"b f5\">", http.escape(value.name), "</div>", http.escape(value.comment), "</div>")
+            return true
+        })
+
+        if !found {
+            http.write("<div class=\"f4 o-30\">No comments found...</div>")
+        }
+
+        ?!>
+
+        <div class="w-100 bb b--black-10 mv3"></div>
+
+        <h5 class="fw1 mv0">Post New Comment</h5>
+        <form action="./index" method="POST">
+            <input type="text" id="name" name="name" placeholder="Your Name..." value="<!? last_name := http.COOKIES.param("last_name"); if(!is_error(last_name)) { http.write(last_name.value); } ?!>"/>
+            <textarea id="comment" name="comment" placeholder="Comment..."></textarea>
+            <button type="submit">Submit</button>
+        </form>
+    </div>
+</body>
+</html>

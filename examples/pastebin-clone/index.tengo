@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pastebin Clone</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/wingcss"/>
+    <link rel="stylesheet" href="https://unpkg.com/tachyons@4.10.0/css/tachyons.min.css"/>
+</head>
+<body class="flex justify-center">
+    <div class="mw8 w-100 pv4">
+        <h5 class="fw1 mv0">Latest Pastes</h5>
+
+        <div class="w-100 bb b--black-10 mv3"></div>
+
+        <!?
+
+            pastes := {};
+            bbolt.iterate("pastes", func(key, value) {
+                if(!value.private) {
+                    pastes[key] = value;
+                }
+                return len(pastes) < 100;
+            })
+
+            for k, v in pastes {
+                http.write("<div><a href=\"./paste?id=", k ,"\">", v.name, "</a></div>");
+            }
+
+        ?!>
+
+        <div class="w-100 bb b--black-10 mv3"></div>
+
+        <a class="no-underline dim" href="./create">Create New Paste</a>
+
+    </div>
+</body>
