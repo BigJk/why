@@ -145,6 +145,9 @@ func (e *Extension) Hook(sc *script.Compiled, w io.Writer, resp http.ResponseWri
 						return why.ToError(err), nil
 					}
 
+					if len(data) == 0 {
+						return why.ToError(errors.New("not found")), nil
+					}
 					return json.Decode(data)
 				},
 			},
