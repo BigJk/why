@@ -32,20 +32,22 @@ func Transpile(in io.Reader, out io.Writer) error {
 
 	writer := bufio.NewWriter(out)
 	for scanner.Scan() {
-		switch iteration % 2 {
-		case 0:
-			if _, err := writer.WriteString("; http.write(`"); err != nil {
-				return err
-			}
-			if _, err := writer.Write(scanner.Bytes()); err != nil {
-				return err
-			}
-			if _, err := writer.WriteString("`);"); err != nil {
-				return err
-			}
-		case 1:
-			if _, err := writer.Write(scanner.Bytes()); err != nil {
-				return err
+		if len(scanner.Bytes()) > 0 {
+			switch iteration % 2 {
+			case 0:
+				if _, err := writer.WriteString("; http.write(`"); err != nil {
+					return err
+				}
+				if _, err := writer.Write(scanner.Bytes()); err != nil {
+					return err
+				}
+				if _, err := writer.WriteString("`);"); err != nil {
+					return err
+				}
+			case 1:
+				if _, err := writer.Write(scanner.Bytes()); err != nil {
+					return err
+				}
 			}
 		}
 		iteration++
