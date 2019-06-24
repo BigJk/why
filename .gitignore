@@ -19,3 +19,10 @@ vendor/
 
 # Go Modules
 go.sum
+
+# Why Specific
+**/public/
+**/lib/
+*.json
+*.bbolt
+/cmd
