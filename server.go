@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -82,6 +83,18 @@ func (s *Server) AddExtension(e Extension) error {
 // Start starts the server and binds it to the
 // given address.
 func (s *Server) Start(address string) error {
+	if s.running.Load() {
+		return errors.New("server already running")
+	}
+
+	log.Print(`──────┐
+│                         │
+│      |  | |__| \ /      │
+│      |/\| |  |  |       │
+│                         │
+└─────────────────────────┘
+`)
+
 	s.running.Store(true)
 	defer func() {
 		s.running.Store(false)
@@ -90,20 +103,25 @@ func (s *Server) Start(address string) error {
 	for i := range s.extensions {
 		if err := s.extensions[i].Init(); err != nil {
 			return errors.Wrapf(err, "error while init of '%s'", s.extensions[i].Name())
+		} else {
+			log.Printf("Extension '%s' loaded.\n", s.extensions[i].Name())
 		}
 	}
 
 	s.serv = &http.Server{Addr: address}
-
 	http.HandleFunc("/", s.handle)
 
+	log.Println("Server started.")
 	return s.serv.ListenAndServe()
 }
 
 // Shutdown will try to shut the server down.
 func (s *Server) Shutdown() error {
+	log.Println("Server shutting down...")
+
 	defer func() {
 		for i := range s.extensions {
+			log.Printf("Extension '%s' shutting down.\n", s.extensions[i].Name())
 			_ = s.extensions[i].Shutdown()
 		}
 	}()

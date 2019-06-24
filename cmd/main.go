@@ -3,8 +3,8 @@ package main
 import (
 	"encoding/json"
 	"flag"
-	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/signal"
 	"reflect"
@@ -143,16 +143,14 @@ func main() {
 		if ctor, ok := extensions[name]; ok {
 			ext, err := tryCreate(ctor, conf)
 			if err != nil {
-				fmt.Printf("Error while building extension: %v\n", err.Error())
+				log.Fatalf("Error while building extension: %v\n", err.Error())
 			} else {
 				if err := server.AddExtension(ext); err != nil {
-					fmt.Printf("Error while adding extension: %v\n", err.Error())
-				} else {
-					fmt.Printf("Extension '%s' loaded\n", ext.Name())
+					log.Fatalf("Error while adding extension: %v\n", err.Error())
 				}
 			}
 		} else {
-			fmt.Printf("Extension '%s' not found\n", name)
+			log.Fatalf("Extension '%s' not found\n", name)
 		}
 	}
 
@@ -166,6 +164,6 @@ func main() {
 
 	// Shut down server.
 	if err := server.Shutdown(); err != nil {
-		fmt.Printf("Error while shutting down server: %v\n", err)
+		log.Printf("Error while shutting down server: %v\n", err)
 	}
 }
