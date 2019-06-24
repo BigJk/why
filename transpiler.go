@@ -12,6 +12,7 @@ import (
 // Html will be wrapped into http.write("...") calls.
 func Transpile(in io.Reader, out io.Writer) error {
 	iteration := 0
+	tagCount := []int{0, 0}
 	tags := [][]byte{[]byte("<!?"), []byte("?!>")}
 
 	scanner := bufio.NewScanner(in)
@@ -20,6 +21,7 @@ func Transpile(in io.Reader, out io.Writer) error {
 			return 0, nil, nil
 		}
 		if i := bytes.Index(data, tags[iteration%2]); i >= 0 {
+			tagCount[iteration%2]++
 			return i + 3, data[0:i], nil
 		}
 		if atEOF {
@@ -49,7 +51,7 @@ func Transpile(in io.Reader, out io.Writer) error {
 		iteration++
 	}
 
-	if iteration%2 == 0 {
+	if tagCount[0] != tagCount[1] {
 		return errors.New("missing closing tags")
 	}
 
