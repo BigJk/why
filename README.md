@@ -109,5 +109,4 @@ Adding custom variables and functions to the scripting engine can be done via th
 
 ## More Examples?
 
-Take a look at the wiki. I will post a few short scripts there to illustrate certain functionalities!
-
+Take a look at the ``examples/`` folder. I will keep adding simple usage examples there to illustrate the functionality of why.
