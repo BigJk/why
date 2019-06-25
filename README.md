@@ -9,11 +9,13 @@ Instead of writing my own scripting language from scratch I decided to use [Teng
 
 ## Example
 
-#### 1. Build the Server
+#### 1. Download the latest Release (or build the Server)
 
-Get the package and build the ``main.go`` in ``cmd/``
+Download the latest release for your platform from the [Releases](https://github.com/BigJk/why/releases) page (or get the package and build the ``main.go`` in ``cmd/``)
 
 #### 2. Create a ``config.json``
+
+In the directory where the binary of the server is located create the following config:
 
 ```
 {
@@ -52,7 +54,7 @@ This will be the example script that we want to run. Let's imagine we want to pr
 
 #### 5. Start the Server
 
-Start ``./cmd`` and visit ``http://127.0.0.1:8765/index?param_1=test&param_2=another_test``. You should see the following in your Browser:
+Start ``./why`` (or ``./cmd`` if you built it yourselfe) and visit ``http://127.0.0.1:8765/index?param_1=test&param_2=another_test``. You should see the following in your Browser:
 ```
 Get Parameter:
 name=param_1, value=test
@@ -67,10 +69,12 @@ name=param_2, value=another_test
 - ``http.host``: Contains the hostname or hostname:port of the current request.
 - ``http.ip``: Contains the IP of the client that made the current request.
 - ``http.proto``: HTTP protocol version of the current request.
-
-- ``http.write(...)``: Variadic function that will write into the html code. This is like ``echo`` in php.
+- ``http.status_code(<int>)``: This will set the status code of the response.
+- ``http.write(...)``: Variadic function that will write into the document. This is like ``echo`` in php.
+- ``http.overwrite(...)``: Variadic function that will overwrite all content that was written to the document before.
 - ``http.escape(<string>)``: Escapes the string. Can be used to avoid XSS.
 - ``http.body()``: Will return the raw post body data.
+- ``http.die()``: Will halt the execution of the script and finish the request.
 
 #### GET
 
