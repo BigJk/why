@@ -54,7 +54,7 @@ This will be the example script that we want to run. Let's imagine we want to pr
 
 #### 5. Start the Server
 
-Start ``./why`` (or ``./cmd`` if you built it yourselfe) and visit ``http://127.0.0.1:8765/index?param_1=test&param_2=another_test``. You should see the following in your Browser:
+Start ``./why`` (or ``./cmd`` if you built it yourself) and visit ``http://127.0.0.1:8765/index?param_1=test&param_2=another_test``. You should see the following in your Browser:
 ```
 Get Parameter:
 name=param_1, value=test
